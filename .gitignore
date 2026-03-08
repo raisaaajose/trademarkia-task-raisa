@@ -1,0 +1,15 @@
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.pytest_cache/
+
+data/*.npy
+data/*.faiss
+data/*.pkl
+data/*.json
+
+.vscode/
+
+.dockerignore
