@@ -55,7 +55,7 @@ class SemanticCache:
         highest_score = -1.0
         found_in_cluster = -1
 
-        # Optimization: Only search buckets relevant to the query's fuzzy distribution
+        # Only search buckets relevant to the query's fuzzy distribution
         for cluster_id in fuzzy_clusters:
             cluster_entries = self.storage.get(cluster_id, OrderedDict())
 

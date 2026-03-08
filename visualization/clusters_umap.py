@@ -3,76 +3,87 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import pickle
 import os
+import json
+import sys
+from umap import UMAP
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def profile_clusters():
-    # Load Data and Models
     data_dir = "data"
+    plots_dir = "plots"
+    os.makedirs(plots_dir, exist_ok=True)
+    
     try:
-        with open(os.path.join(data_dir, "metadata.pkl"), "rb") as f:
-            meta = pickle.load(f)
-        
-        # Load the saved reducer to maintain consistency with the API
-        with open(os.path.join(data_dir, "umap_reducer.pkl"), "rb") as f:
-            reducer = pickle.load(f)
+        # Load Cluster Names
+        names_path = os.path.join(data_dir, "cluster_names.json")
+        if os.path.exists(names_path):
+            with open(names_path, "r") as f:
+                cluster_names = json.load(f)
+        else:
+            # Fallback: Many VectorDBs save names inside their own metadata
+            print("Warning: cluster_names.json not found. Using numeric IDs.")
+            cluster_names = {}
             
-        embeddings_384d = np.load(os.path.join(data_dir, "raw_embeddings.npy"))
+        # Load Raw Embeddings (384-D)
+        embeddings_path = os.path.join(data_dir, "raw_embeddings.npy")
+        if not os.path.exists(embeddings_path):
+            raise FileNotFoundError("raw_embeddings.npy missing. Run preprocess.py.")
+        embeddings_384d = np.load(embeddings_path)
         
-        # Get labels and names from metadata
-        distributions = np.array(meta["distributions"])
-        cluster_ids = distributions.argmax(axis=1)
-        cluster_names = meta.get("cluster_names", {})
-    except FileNotFoundError as e:
-        print(f"Error: Missing files in /data. Run preprocess.py first ({e})")
+        # Load GMM Model
+        with open(os.path.join(data_dir, "gmm_model.pkl"), "rb") as f:
+            gmm = pickle.load(f)
+            
+        # Load Production Reducer (10-D)
+        with open(os.path.join(data_dir, "umap_reducer.pkl"), "rb") as f:
+            production_reducer = pickle.load(f)
+
+        # Generate Assignments in the Production Space
+        print("Projecting to 10-D Production Space...")
+        reduced_10d = production_reducer.transform(embeddings_384d)
+        probs = gmm.predict_proba(reduced_10d)
+        cluster_ids = probs.argmax(axis=1)
+
+    except Exception as e:
+        print(f" Error: {str(e)}")
         return
 
-    # Cluster Population Report
-    df = pd.DataFrame({'cluster': cluster_ids})
-    counts = df['cluster'].value_counts().sort_index()
-    
+    # Population Report 
+    counts = pd.Series(cluster_ids).value_counts().sort_index()
     print("\n--- Cluster Population Report ---")
-    print(f"{'ID':<5} | {'Count':<8} | {'Topic Name'}")
-    print("-" * 60)
+    print(f"{'ID':<4} | {'Count':<6} | {'Topic Name'}")
+    print("-" * 50)
     for cid, count in counts.items():
-        name = cluster_names.get(str(cid), cluster_names.get(cid, "N/A"))
-        print(f"{cid:<5} | {count:<8} | {name}")
+        # Handle string vs int keys in JSON
+        name = cluster_names.get(str(cid), cluster_names.get(cid, f"Cluster {cid}"))
+        print(f"{cid:<4} | {count:<6} | {name}")
 
-    # Dimensionality Reduction 
-    print("\nGenerating 2D manifold for visualization...")
-    # use the existing reducer but transform to 2D for the plot
-    from umap import UMAP
-    viz_reducer = UMAP(n_components=2, n_neighbors=15, min_dist=0.1, random_state=42)
-    reduced_vecs = viz_reducer.fit_transform(embeddings_384d)
+    # 2D Visualization 
+    
+    print("\nGenerating 2D 'Fuzzy' Landscape visualization...")
+    viz_reducer = UMAP(n_components=2, n_neighbors=30, min_dist=0.5, random_state=42)
+    reduced_2d = viz_reducer.fit_transform(embeddings_384d)
 
-    # Advanced Plotting
     plt.figure(figsize=(14, 10))
+    scatter = plt.scatter(reduced_2d[:, 0], reduced_2d[:, 1], 
+                         c=cluster_ids, cmap='tab20', alpha=0.6, s=8)
     
-    # Use a high-quality colormap
-    scatter = plt.scatter(
-        reduced_vecs[:, 0], 
-        reduced_vecs[:, 1], 
-        c=cluster_ids, 
-        cmap='Spectral', 
-        alpha=0.6, 
-        s=2
-    )
-    
-    plt.colorbar(scatter, label='Cluster ID')
-    plt.title("Semantic Landscape: UMAP Manifold Projection", fontsize=15)
+    # Label cluster centers for clarity
+    for cid in counts.index:
+        mask = cluster_ids == cid
+        center = np.median(reduced_2d[mask], axis=0)
+        plt.annotate(str(cid), center, fontsize=12, weight='bold',
+                     bbox=dict(facecolor='white', alpha=0.6, edgecolor='none'))
+
+    plt.title("Semantic Search Landscape", fontsize=16)
     plt.xlabel("UMAP Dimension 1")
     plt.ylabel("UMAP Dimension 2")
     
-    # Add labels for the largest clusters directly on the plot
-    for cid in counts.index:
-        # Calculate the median position of points in this cluster
-        mask = cluster_ids == cid
-        median_pos = np.median(reduced_vecs[mask], axis=0)
-        plt.text(median_pos[0], median_pos[1], str(cid), 
-                 fontsize=12, weight='bold', 
-                 bbox=dict(facecolor='white', alpha=0.5, edgecolor='none'))
-
-    os.makedirs("plots", exist_ok=True)
-    plt.savefig("plots/cluster_landscape_umap.png", dpi=300)
-    print("Visualization saved to plots/cluster_landscape_umap.png")
+    save_path = os.path.join(plots_dir, "cluster_landscape_umap.png")
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Success! Visualization saved to {save_path}")
 
 if __name__ == "__main__":
     profile_clusters()

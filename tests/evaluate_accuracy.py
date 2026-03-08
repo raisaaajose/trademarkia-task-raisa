@@ -27,7 +27,7 @@ def evaluate():
         with open("data/umap_reducer.pkl", "rb") as f:
             reducer = pickle.load(f)
         with open("data/gmm_model.pkl", "rb") as f:
-            gmm = GaussianMixture_model = pickle.load(f) 
+            gmm = pickle.load(f) 
             
         # Load the raw 384-D embeddings generated during preprocess
         if not os.path.exists("data/raw_embeddings.npy"):
@@ -36,8 +36,8 @@ def evaluate():
         
         embeddings_384d = np.load("data/raw_embeddings.npy")
         
-        # Transform to the 50-D UMAP space
-        print("Transforming embeddings to UMAP manifold (50-D)...")
+        # Transform to the UMAP space
+        print("Transforming embeddings to UMAP manifold...")
         embeddings_reduced = reducer.transform(embeddings_384d)
         
         # Predict clusters using the GMM trained on reduced space

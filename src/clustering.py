@@ -9,13 +9,17 @@ import pandas as pd
 def perform_fuzzy_clustering(embeddings, n_clusters=14):
     # Dimensionality Reduction
     reducer = UMAP(
-        n_components=50, n_neighbors=15, min_dist=0.1, metric="cosine", random_state=42
+        n_components=10,
+        n_neighbors=100,
+        min_dist=0.8,
+        metric="cosine",
+        random_state=42,
     )
     refined_embeddings = reducer.fit_transform(embeddings)
 
-    # Fit GMM on the REDUCED space
+    # Fit GMM on the reduced space
     gmm = GaussianMixture(
-        n_components=n_clusters, covariance_type="diag", random_state=42
+        n_components=n_clusters, covariance_type="diag", random_state=42, reg_covar=1e-1
     )
     gmm.fit(refined_embeddings)
 
@@ -23,7 +27,7 @@ def perform_fuzzy_clustering(embeddings, n_clusters=14):
     probs = gmm.predict_proba(refined_embeddings)
     dominant_clusters = probs.argmax(axis=1)
 
-    return probs, dominant_clusters, reducer
+    return probs, dominant_clusters, reducer, gmm
 
 
 def get_cluster_topic_names(documents, labels, n_top_words=5):

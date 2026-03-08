@@ -15,8 +15,10 @@ class Settings:
     VECTOR_DB_PATH: str = os.path.join(DATA_DIR, "vector_db.faiss")
 
     # Cache
-    CACHE_THRESHOLD: float = float(os.getenv("CACHE_THRESHOLD", 0.90))
+    CACHE_THRESHOLD: float = float(os.getenv("CACHE_THRESHOLD", 0.70))
     CACHE_CAPACITY: int = int(os.getenv("CACHE_CAPACITY", 100))
+
+    T: float = float(os.getenv("T", 3.5))
 
 
 config = Settings()

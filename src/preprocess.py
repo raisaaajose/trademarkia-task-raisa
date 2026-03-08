@@ -6,10 +6,11 @@ from sklearn.datasets import fetch_20newsgroups
 from sklearn.mixture import GaussianMixture
 from sentence_transformers import SentenceTransformer
 from umap import UMAP
+import json
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.clustering import get_cluster_topic_names
+from src.clustering import get_cluster_topic_names, perform_fuzzy_clustering
 from src.vector_store import InternalVectorDB
 from src.config import config
 import nltk
@@ -71,37 +72,14 @@ def main():
         embeddings = model.encode(docs, show_progress_bar=True)
         np.save(embedding_cache_path, embeddings)
 
-    # Dimensionality Reduction (384-D -> 50-D)
-    # This pushes clusters apart and removes high-dimensional noise
-    print("Applying UMAP for cluster separation...")
-    reducer = UMAP(
-        n_components=50, n_neighbors=15, min_dist=0.1, metric="cosine", random_state=42
+    print(f"Performing Fuzzy Clustering on {config.N_CLUSTERS} clusters...")
+    # This calls your clustering.py which has the reg_covar=1e-1 and n_components=10
+    probs, dominant_clusters, reducer, gmm = perform_fuzzy_clustering(
+        embeddings, n_clusters=config.N_CLUSTERS
     )
-    reduced_embeddings = reducer.fit_transform(embeddings)
 
     with open("data/umap_reducer.pkl", "wb") as f:
         pickle.dump(reducer, f)
-
-    # Fuzzy Clustering on Reduced Space
-    print(f"Fitting GMM on {config.N_CLUSTERS} clusters...")
-    reduced_embeddings_64 = reduced_embeddings.astype("float64")
-
-    gmm = GaussianMixture(
-        n_components=config.N_CLUSTERS,
-        covariance_type="diag",
-        random_state=42,
-        # Increase reg_covar slightly more to 1e-3 to prevent collapsed components
-        reg_covar=1e-3,
-        tol=1e-3,
-        # Add n_init to help it find a stable starting point
-        n_init=2,
-    )
-
-    # Fit using the high-precision data
-    gmm.fit(reduced_embeddings_64)
-
-    probs = gmm.predict_proba(reduced_embeddings)
-    dominant_clusters = probs.argmax(axis=1)
 
     with open("data/gmm_model.pkl", "wb") as f:
         pickle.dump(gmm, f)
@@ -110,6 +88,8 @@ def main():
     print("Generating distinct topic names...")
     cluster_names = get_cluster_topic_names(docs, dominant_clusters)
 
+    with open("data/cluster_names.json", "w") as f:
+        json.dump(cluster_names, f, indent=4)
     # Persist to Vector DB
     # Store the 384-D embeddings for high-precision search,
     # but the distributions come from the UMAP-GMM pipeline.
