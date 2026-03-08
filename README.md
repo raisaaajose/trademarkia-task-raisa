@@ -20,6 +20,9 @@ To avoid guessing the number of clusters ($K$), I utilized the **Bayesian Inform
 We utilized **UMAP** to project 384-D Sentence Embeddings into a 10-D manifold for clustering.
 * **Parameter Tuning:** To prevent hard assignments, we increased `min_dist` to **0.25** and `n_neighbors` to **30**. This ensures semantic bridges remain between clusters, allowing for the fuzzy distributions required by the prompt.
 
+### 4. Temperature Scaling ($T$) 
+To satisfy the requirement that hard cluster assignments are not acceptable, I implemented a Temperature ($T$) parameter in the API response logic. Raw probabilities from the GMM can often be overly confident, masking the true semantic overlap between topics.
+By applying $T$ to the log-probabilities (similar to a Softmax temperature), we can soften the distribution.**The Result:** We chose $T=1.5$ to purposely amplify boundary cases. This ensures that a query like "gun legislation" doesn't just return a single label, but mathematically reveals its dual membership in both Politics and Firearms to varying degrees. This explicit value determines the fuzziness of the system and is a core heuristic of our design.
 
 
 ---
@@ -83,7 +86,7 @@ docker pull raisaaaj/trademarkia-ai-search:latest
 
 # Run the container
 # This starts the uvicorn server on port 8000 internally and maps it to your host
-docker run -p 8000:8000 raisa-jose/trademarkia-ai-search:latest
+docker run -p 8000:8000 raisaaaj/trademarkia-ai-search:latest
 
 ```
 
