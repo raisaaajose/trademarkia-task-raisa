@@ -12,18 +12,18 @@ Unlike K-Means, which performs hard assignments, a **GMM** naturally handles the
 
 ### 2. Evidence-Based Clustering (BIC/AIC)
 To avoid guessing the number of clusters ($K$), I utilized the **Bayesian Information Criterion (BIC)** and **Akaike Information Criterion (AIC)**.
-* **The Logic:** By plotting the BIC elbow, we mathematically justified $K=14$ as the optimal semantic resolution for this corpus, proving that the 20 ground-truth labels actually share significant semantic overlap.
+* **The Logic:** By plotting the BIC elbow, I mathematically justified $K=14$ as the optimal semantic resolution for this corpus, proving that the 20 ground-truth labels actually share significant semantic overlap.
 
 
 
 ### 3. Dimensionality Reduction (UMAP vs. PCA)
-We utilized **UMAP** to project 384-D Sentence Embeddings into a 10-D manifold for clustering.
-* **Parameter Tuning:** To prevent hard assignments, we increased `min_dist` to **0.25** and `n_neighbors` to **30**. This ensures semantic bridges remain between clusters, allowing for the fuzzy distributions required by the prompt.
+I utilized **UMAP** to project 384-D Sentence Embeddings into a 10-D manifold for clustering.
+* **Parameter Tuning:** To prevent hard assignments, I increased `min_dist` to **0.25** and `n_neighbors` to **30**. This ensures semantic bridges remain between clusters, allowing for the fuzzy distributions required by the prompt.
 
 ### 4. Temperature Scaling ($T$) 
 To satisfy the requirement that hard cluster assignments are not acceptable, I implemented a Temperature ($T$) parameter in the API response logic. Raw probabilities from the GMM can often be overly confident, masking the true semantic overlap between topics.
 By applying $T$ to the log-probabilities (similar to a Softmax temperature), we can soften the distribution.
-* **The Result:** We chose $T=1.5$ to purposely amplify boundary cases. This ensures that a query like "gun legislation" doesn't just return a single label, but mathematically reveals its dual membership in both Politics and Firearms to varying degrees. This explicit value determines the fuzziness of the system and is a core heuristic of our design.
+* **The Result:** I chose $T=1.5$ to purposely amplify boundary cases. This ensures that a query like "gun legislation" doesn't just return a single label, but mathematically reveals its dual membership in both Politics and Firearms to varying degrees. This explicit value determines the fuzziness of the system and is a core heuristic of our design.
 
 
 ---
@@ -34,10 +34,10 @@ By applying $T$ to the log-probabilities (similar to a Softmax temperature), we 
 ### Cluster-Aware Semantic Cache
 The cache is built from first principles and optimized by the GMM structure:
 * **Dominant Cluster Filtering:** The system identifies the top 3 most likely clusters for a query and *only* searches those specific cache buckets. This satisfies the requirement to use the cluster structure to improve lookup efficiency.
-* **Tunable Decision (Threshold):** We set the similarity threshold to **0.7**. This allows the cache to recognize paraphrased intent (e.g., "fix tire" vs "repair puncture") while maintaining high precision.
+* **Tunable Decision (Threshold):** I set the similarity threshold to **0.7**. This allows the cache to recognize paraphrased intent (e.g., "fix tire" vs "repair puncture") while maintaining high precision.
 
 ### Advanced NLP Preprocessing
-* **N-grams:** We use (1, 2) n-grams to capture phrases like "Second Amendment" which carry higher signal than single words.
+* **N-grams:** I use (1, 2) n-grams to capture phrases like "Second Amendment" which carry higher signal than single words.
 * **Aggressive Cleaning:** Custom stop words were added to filter out newsgroup-specific metadata (e.g., `nntp`, `host`, `organization`) to ensure cluster Topic Names are meaningful and not noisy.
 
 
@@ -161,16 +161,13 @@ curl -X POST "http://localhost:8000/query" \
 
 What to look for in the response:
 
-* 
-**`cache_hit`**: Should be `false` on the first run and `true` on the second identical run.
+* **`cache_hit`**: Should be `false` on the first run and `true` on the second identical run.
 
 
-* 
-**`dominant_cluster`**: The primary ID identified by the GMM.
+* **`dominant_cluster`**: The primary ID identified by the GMM.
 
 
-* 
-**`fuzzy_logic`**: A distribution showing the query's membership across multiple topics, proving it doesn't just belong to one label.
+* **`fuzzy_logic`**: A distribution showing the query's membership across multiple topics, proving it doesn't just belong to one label.
 
 
 
