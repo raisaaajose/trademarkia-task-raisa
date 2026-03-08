@@ -51,7 +51,8 @@ The system's internal state and clustering logic are validated through three pri
 <p align="center">
   <img src="plots/k_selection_umap.png" width="900"/>
 </p>
-While the dataset has 20 categories, many overlap—like different types of computer hardware or sports. $k=14$ was chosen because it is the spot where the model is detailed enough to separate unique topics without getting distracted by minor overlaps, ensuring our Semantic Cache stays fast and organized. This lower number also allows the model to correctly show how a single post might belong to two related topics at once, satisfying the fuzzy clustering requirement.
+
+While the dataset has 20 categories, many overlap—like different types of computer hardware or sports. **K=14** was chosen because it is the spot where the model is detailed enough to separate unique topics without getting distracted by minor overlaps, ensuring our Semantic Cache stays fast and organized. This lower number also allows the model to correctly show how a single post might belong to two related topics at once, satisfying the fuzzy clustering requirement.
 
 
 ### 2. The Semantic Landscape (`cluster_landscape_umap.png`)
