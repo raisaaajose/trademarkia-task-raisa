@@ -22,7 +22,8 @@ We utilized **UMAP** to project 384-D Sentence Embeddings into a 10-D manifold f
 
 ### 4. Temperature Scaling ($T$) 
 To satisfy the requirement that hard cluster assignments are not acceptable, I implemented a Temperature ($T$) parameter in the API response logic. Raw probabilities from the GMM can often be overly confident, masking the true semantic overlap between topics.
-By applying $T$ to the log-probabilities (similar to a Softmax temperature), we can soften the distribution.**The Result:** We chose $T=1.5$ to purposely amplify boundary cases. This ensures that a query like "gun legislation" doesn't just return a single label, but mathematically reveals its dual membership in both Politics and Firearms to varying degrees. This explicit value determines the fuzziness of the system and is a core heuristic of our design.
+By applying $T$ to the log-probabilities (similar to a Softmax temperature), we can soften the distribution.
+* **The Result:** We chose $T=1.5$ to purposely amplify boundary cases. This ensures that a query like "gun legislation" doesn't just return a single label, but mathematically reveals its dual membership in both Politics and Firearms to varying degrees. This explicit value determines the fuzziness of the system and is a core heuristic of our design.
 
 
 ---
