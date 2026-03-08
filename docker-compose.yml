@@ -3,10 +3,9 @@ version: '3.8'
 services:
   api:
     build: .
+    image: raisa-jose/trademarkia-ai-search:latest
     ports:
       - "8000:8000"
-    volumes:
-      - .:/app
     environment:
       - ENV=production
     # This allows to see logs in real-time

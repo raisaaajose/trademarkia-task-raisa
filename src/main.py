@@ -17,13 +17,14 @@ MODEL = SentenceTransformer("all-MiniLM-L6-v2")
 VECTOR_DB = InternalVectorDB()
 CACHE = SemanticCache(
     threshold=config.CACHE_THRESHOLD, capacity_per_cluster=config.CACHE_CAPACITY
-)
+)  # Built from first principles
 GMM_MODEL = None
 UMAP_REDUCER = None
 
 
 @app.on_event("startup")
 async def startup_event():
+    """Load models and data on startup for proper state management"""
     global GMM_MODEL, UMAP_REDUCER
     data_dir = "data"
     gmm_path = os.path.join(data_dir, "gmm_model.pkl")
@@ -48,6 +49,10 @@ class QueryRequest(BaseModel):
 
 @app.post("/query")
 async def handle_query(request: QueryRequest):
+    """
+    Accepts natural language queries, performs fuzzy clustering,
+    and checks the semantic cache
+    """
     query_text = request.query
     if not query_text.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
@@ -59,28 +64,31 @@ async def handle_query(request: QueryRequest):
     query_vec_384d = MODEL.encode(query_text).reshape(1, -1)
     query_vec_1d = query_vec_384d.flatten()
 
-    # Transform to UMAP Space
+    # Transform to UMAP Space and Determine Fuzzy Cluster Probabilities
     query_vec_reduced = UMAP_REDUCER.transform(query_vec_384d)
-
-    # Determine Fuzzy Cluster Probabilities
-    # This reflects the actual mathematical distribution without scaling
     probs_all = GMM_MODEL.predict_proba(query_vec_reduced)[0]
 
+    # Temperature scaling for fuzzy distribution
     T = config.T
-
     smoothed_probs = np.exp(np.log(probs_all + 1e-10) / T)
     smoothed_probs /= np.sum(smoothed_probs)
 
     top_indices = smoothed_probs.argsort()[-3:][::-1]
-
     top_cluster_ids = [int(idx) for idx in top_indices]
     dom_cluster_id = top_cluster_ids[0]
 
-    # Fuzzy Semantic Cache Lookup
-    # Uses multiple likely clusters to find existing answers
+    # Fuzzy Semantic Cache Lookup utilizing cluster structure
     hit, cached_result = CACHE.query(query_text, query_vec_1d, top_cluster_ids)
     if hit:
-        return cached_result
+        # Returning required JSON structure for cache hit
+        return {
+            "query": query_text,
+            "cache_hit": True,
+            "matched_query": cached_result["matched_query"],
+            "similarity_score": cached_result["similarity_score"],
+            "result": cached_result["result"],
+            "dominant_cluster": dom_cluster_id,
+        }
 
     # Cache Miss - Search the Internal Vector DB
     search_results = VECTOR_DB.search(query_vec_1d, k=1)
@@ -88,51 +96,44 @@ async def handle_query(request: QueryRequest):
         return {
             "query": query_text,
             "cache_hit": False,
+            "matched_query": None,
+            "similarity_score": 0.0,
             "result": "No relevant docs found.",
+            "dominant_cluster": dom_cluster_id,
         }
 
     final_result = search_results[0]["text"]
-    similarity_score = float(search_results[0]["score"])
+    similarity_score = round(float(search_results[0]["score"]), 4)
 
-    # Metadata Preparation
-    top_clusters_metadata = [
-        {
-            "id": int(idx),
-            "score": round(float(smoothed_probs[idx]), 4),
-            "topic": VECTOR_DB.cluster_names.get(int(idx), f"Cluster {idx}"),
-        }
-        for idx in top_indices
-    ]
-
-    # Calculate Confidence Gap to find boundary cases
-    conf_gap = round(
-        top_clusters_metadata[0]["score"] - top_clusters_metadata[1]["score"], 4
-    )
-
-    # Update Cache
+    # Store the miss result in cache before returning
     CACHE.update(query_text, query_vec_1d, final_result, dom_cluster_id)
 
+    # Returning required JSON structure for cache miss
     return {
         "query": query_text,
         "cache_hit": False,
-        "result": final_result,
+        "matched_query": None,
         "similarity_score": similarity_score,
+        "result": final_result,
         "dominant_cluster": dom_cluster_id,
-        "cluster_topic": top_clusters_metadata[0]["topic"],
         "fuzzy_logic": {
-            "top_3_distribution": top_clusters_metadata,
-            "confidence_gap": conf_gap,
+            "top_3_distribution": [
+                {"id": int(idx), "score": round(float(smoothed_probs[idx]), 4)}
+                for idx in top_indices
+            ]
         },
     }
 
 
 @app.get("/cache/stats")
 async def get_cache_stats():
+    """Returns current cache state statistics"""
     return CACHE.get_stats()
 
 
 @app.delete("/cache")
 async def clear_cache():
+    """Flushes the cache entirely and resets all stats"""
     CACHE.flush()
     return {"message": "Cache cleared successfully"}
 
