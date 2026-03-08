@@ -79,7 +79,7 @@ The simplest way to run the service is using Docker Hub. This avoids the need fo
 
 ```bash
 # Pull the latest image from Docker Hub
-docker pull raisa-jose/trademarkia-ai-search:latest
+docker pull raisaaaj/trademarkia-ai-search:latest
 
 # Run the container
 # This starts the uvicorn server on port 8000 internally and maps it to your host
@@ -139,7 +139,7 @@ uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 ---
 
-## 🧪 Testing the API
+## Testing the API
 
 Once the server is running , you can execute these operations to verify the implementation.
 
